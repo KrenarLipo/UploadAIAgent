@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Botty Upload</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #6b7280; --border: #e3e6eb;
+    --accent: #2e7d32; --accent-text: #fff; --warn: #b45309; --warn-bg: #fff7e6; --ok-bg: #e8f5e9;
+    --bad: #b91c1c; --bad-bg: #fdecec; --info: #1d4ed8; --info-bg: #eaf1ff; --backdrop: rgba(15, 20, 30, .45);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b2029; --text: #e6e8ec; --muted: #9aa3b2; --border: #2b3240;
+      --accent: #4caf50; --accent-text: #0b1a0c; --warn: #f0b35a; --warn-bg: #2d2416; --ok-bg: #18301b;
+      --bad: #f28b8b; --bad-bg: #3a1c1c; --info: #8fb4ff; --info-bg: #1a2540; --backdrop: rgba(0, 0, 0, .6);
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }  /* layout classes like .row must not un-hide elements */
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .paths { color: var(--muted); font-size: 12px; margin-bottom: 16px; overflow-wrap: anywhere; }
+  .paths code { font-size: 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .spacer { flex: 1; }
+  input[type=text], input[type=password], select, button { font: inherit; padding: 6px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text); }
+  input[type=text], input[type=password] { min-width: 0; width: 180px; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button.danger { background: var(--warn); color: var(--card); border-color: var(--warn); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .error { color: var(--bad); margin-top: 8px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); margin-right: 6px; }
+  .pill { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--info-bg); color: var(--info); }
+  .pill.production { background: var(--bad-bg); color: var(--bad); }
+  .toolbar { position: sticky; top: 8px; z-index: 1; }
+  .summary { color: var(--muted); margin-bottom: 8px; }
+  .progress { display: none; }
+  .progress.show { display: block; }
+  .bar { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .group { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+  .group.is-online { border-left: 4px solid var(--accent); }
+  .group.is-partial { border-left: 4px solid var(--warn); }
+  .group > header { display: flex; gap: 12px; align-items: center; padding: 10px 12px; cursor: pointer; }
+  .group .id { font-weight: 600; font-family: ui-monospace, monospace; }
+  .group .code { color: var(--muted); font-family: ui-monospace, monospace; font-size: 12px; }
+  .langs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .lang { font-size: 11px; font-family: ui-monospace, monospace; padding: 1px 6px; border-radius: 4px; background: var(--bg); color: var(--muted); }
+  .lang.online { background: var(--ok-bg); color: var(--accent); }
+  .lang.rejected { background: var(--bad-bg); color: var(--bad); }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); white-space: nowrap; }
+  .badge.ok { background: var(--ok-bg); color: var(--accent); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .files { display: none; border-top: 1px solid var(--border); padding: 8px 12px 12px 44px; font-family: ui-monospace, monospace; font-size: 12px; }
+  .group.open .files { display: block; }
+  .files div { padding: 1px 0; overflow-wrap: anywhere; }
+  .muted { color: var(--muted); }
+  .files .online { color: var(--accent); }
+  .files .rejected { color: var(--bad); }
+
+  dialog { border: 1px solid var(--border); border-radius: 10px; padding: 0; width: min(560px, calc(100vw - 32px));
+           background: var(--card); color: var(--text); }
+  dialog::backdrop { background: var(--backdrop); }
+  dialog .body { padding: 18px 20px 8px; max-height: 70vh; overflow: auto; }
+  dialog h2 { font-size: 17px; margin: 0 0 8px; }
+  dialog h3 { font-size: 14px; margin: 14px 0 4px; }
+  dialog ul { margin: 4px 0; padding-left: 18px; }
+  dialog li { margin: 2px 0; }
+  dialog li code { font-weight: 600; }
+  dialog .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 12px 20px 16px; }
+  .h-ok { color: var(--accent); } .h-skip { color: var(--warn); } .h-bad { color: var(--bad); }
+  @media (max-width: 600px) {
+    .group > header { flex-wrap: wrap; } .files { padding-left: 12px; }
+    input[type=text], input[type=password] { width: 100%; }
+  }
+
+  /* ---- Botty ------------------------------------------------------------------------------------ */
+  :root { --bot-head: #e6f2e8; --bot-line: #2e7d32; --bot-face: #1d2a22; --bot-glow: #6ff0a6; --bot-cheek: #f4a3b4; --shadow: 0 6px 24px rgba(15, 20, 30, .18); }
+  @media (prefers-color-scheme: dark) {
+    :root { --bot-head: #263a2d; --bot-line: #4caf50; --bot-face: #0c120e; --bot-glow: #6ff0a6; --bot-cheek: #b85c74; --shadow: 0 6px 24px rgba(0, 0, 0, .5); }
+  }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .brand .logo { width: 44px; height: 55px; flex: none; }
+  .brand h1 { margin: 0; }
+  .brand .tagline { color: var(--muted); font-size: 13px; }
+  .bot { display: block; width: 100%; height: 100%; overflow: visible; }
+  .bot .head, .bot .torso, .bot .arm rect { fill: var(--bot-head); stroke: var(--bot-line); stroke-width: 3; }
+  .bot .face { fill: var(--bot-face); }
+  .bot .eye, .bot .mouth { fill: var(--bot-glow); transform-box: fill-box; transform-origin: center; }
+  .bot .eye { animation: blink 4.5s infinite; }
+  .bot .cheek { fill: var(--bot-cheek); opacity: .75; }
+  .bot .stem { stroke: var(--bot-line); stroke-width: 3; stroke-linecap: round; }
+  .bot .light { fill: var(--bot-glow); stroke: var(--bot-line); stroke-width: 2; animation: pulse 1.8s ease-in-out infinite; }
+  .bot .chest { fill: none; stroke: var(--bot-line); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+  .bot .whole { animation: bob 3.2s ease-in-out infinite; }
+  .bot .arm { transform-box: fill-box; transform-origin: 50% 6%; }
+  .bot.talking .mouth, .bot.speaking .mouth { animation: talk .16s ease-in-out infinite alternate; }
+  .bot.waving .arm-right { animation: wave 2.2s ease-in-out 1; }
+  .bot.happy .chest { animation: hop .5s ease-in-out 3; }
+  @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 94% { transform: scaleY(.12); } }
+  @keyframes talk { from { transform: scaleY(1); } to { transform: scaleY(3.2); } }
+  @keyframes pulse { 50% { opacity: .35; } }
+  @keyframes bob { 50% { transform: translateY(-4px); } }
+  @keyframes wave { 0%, 100% { transform: rotate(0); } 18%, 54% { transform: rotate(-150deg); } 36%, 72% { transform: rotate(-115deg); } 86% { transform: rotate(-150deg); } }
+  @keyframes hop { 50% { transform: translateY(-4px); } }
+
+  .botty-dialog { width: min(680px, calc(100vw - 32px)); }
+  .botty-stage { display: flex; gap: 18px; align-items: center; padding: 22px 22px 8px; }
+  .botty-figure { width: 150px; height: 188px; flex: none; }
+  .bubble { position: relative; flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; min-height: 150px; }
+  .bubble::before { content: ""; position: absolute; left: -9px; top: 46px; width: 16px; height: 16px; background: var(--bg);
+                    border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); transform: rotate(45deg); }
+  .bubble .step-title { font-weight: 700; font-size: 16px; margin: 0 0 6px; }
+  .bubble p { margin: 0; min-height: 4.5em; }
+  .bubble .caret { display: inline-block; width: 2px; height: 1em; background: var(--text); vertical-align: -2px; margin-left: 1px; animation: pulse .8s steps(1) infinite; }
+  .dots { display: flex; gap: 6px; margin-top: 12px; }
+  .dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+  .dots span.on { background: var(--accent); }
+  .botty-dialog .actions { align-items: center; }
+
+  .botty-fab { position: fixed; right: 16px; bottom: 16px; z-index: 5; width: 68px; height: 68px; padding: 6px 10px 2px;
+               border-radius: 50%; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow); }
+  .botty-fab:hover { transform: translateY(-2px); }
+  .botty-toast { position: fixed; right: 16px; bottom: 96px; z-index: 5; max-width: min(320px, calc(100vw - 32px));
+                 background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px;
+                 box-shadow: var(--shadow); opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .25s, transform .25s; }
+  .botty-toast.show { opacity: 1; transform: none; pointer-events: auto; }
+  .botty-toast::after { content: ""; position: absolute; right: 30px; bottom: -8px; width: 14px; height: 14px; background: var(--card);
+                        border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); transform: rotate(45deg); }
+  .botty-toast strong { display: block; font-size: 12px; color: var(--accent); }
+  .botty-toast .ask { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .botty-toast .ask button { padding: 4px 12px; }
+  .voice-btn { font-size: 12px; padding: 4px 10px; white-space: nowrap; }
+  .brand .voice-btn { margin-left: auto; }
+  main { padding-bottom: 110px; }
+
+  @media (max-width: 600px) {
+    .botty-stage { flex-direction: column; padding: 18px 16px 4px; }
+    .botty-figure { width: 104px; height: 130px; }
+    .bubble::before { left: 50%; top: -9px; margin-left: -8px; transform: rotate(135deg); }
+    .bubble { width: 100%; min-height: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bot *, .bot { animation: none !important; }
+    .botty-toast, .botty-fab { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">
+    <span class="logo" data-bot aria-hidden="true"></span>
+    <div>
+      <h1>Botty Upload</h1>
+      <div class="tagline">Your little helper for putting Mimatest reports on the platform</div>
+    </div>
+    <button class="voice-btn" data-voice-toggle hidden></button>
+  </div>
+  <div class="paths">Input <code>{{ input_dir }}</code> · Reports <code>{{ output_dir }}</code></div>
+
+  <!-- Platform connection: log in once a day, the token then stays valid for 24 hours -->
+  <section class="card" id="connectCard">
+    <div id="disconnected">
+      <form class="row" id="connectForm">
+        <strong>Connect to platform</strong>
+        <select id="platform">
+          {% for key, p in platforms.items() %}<option value="{{ key }}">{{ p.label }} ({{ p.api }})</option>{% endfor %}
+        </select>
+        <input type="text" id="username" placeholder="Admin username" autocomplete="username" required>
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+        <button class="primary" type="submit" id="connectBtn">Connect</button>
+      </form>
+      <div class="muted" style="margin-top:6px;font-size:12px">The password is not stored. The login stays valid for 24 hours, also for the daily automatic upload.</div>
+      <div class="error" id="connectError"></div>
+    </div>
+    <div id="connected" class="row" hidden>
+      <span><span class="dot"></span>Connected to <span class="pill" id="sessionPlatform"></span> as <strong id="sessionUser"></strong></span>
+      <span class="muted" id="sessionExpiry"></span>
+      <span class="spacer"></span>
+      <button id="disconnectBtn">Disconnect</button>
+    </div>
+  </section>
+
+  <section class="card toolbar">
+    <div class="row">
+      <label>Input folder
+        <select id="folder">
+          {% for f in folders %}<option value="{{ f }}">{{ "(input root)" if f == "." else f }}</option>{% endfor %}
+        </select>
+      </label>
+      <label><input type="checkbox" id="selectAll"> Select all</label>
+      <label><input type="checkbox" id="hideOnline"> Hide kits already online</label>
+      <span class="spacer"></span>
+      <button class="primary" id="upload" disabled>Upload selected</button>
+    </div>
+    <div class="progress" id="progress">
+      <div class="row"><span id="progressText"></span><span class="spacer"></span><button id="stopBtn">Stop after this kit</button></div>
+      <div class="bar"><div id="progressBar"></div></div>
+    </div>
+  </section>
+
+  <div class="summary" id="summary">Loading…</div>
+  <div id="groups"></div>
+</main>
+
+<dialog id="confirm">
+  <div class="body">
+    <h2 id="confirmTitle"></h2>
+    <div id="confirmText"></div>
+  </div>
+  <div class="actions">
+    <button id="cancelBtn">Cancel</button>
+    <button id="skipBtn" class="primary">Skip those</button>
+    <button id="goBtn" class="primary">Upload</button>
+  </div>
+</dialog>
+
+<dialog id="report">
+  <div class="body" id="reportBody"></div>
+  <div class="actions"><button class="primary" id="reportClose">Close</button></div>
+</dialog>
+
+<!-- Botty: one drawing, cloned into every [data-bot] spot -->
+<template id="botTpl">
+  <svg class="bot" viewBox="0 0 120 150" role="img" aria-label="Botty the upload robot">
+    <g class="whole">
+      <line class="stem" x1="60" y1="12" x2="60" y2="28"/>
+      <circle class="light" cx="60" cy="9" r="6"/>
+      <rect class="head" x="10" y="48" width="10" height="22" rx="5"/>
+      <rect class="head" x="100" y="48" width="10" height="22" rx="5"/>
+      <rect class="head" x="18" y="28" width="84" height="62" rx="22"/>
+      <rect class="face" x="28" y="40" width="64" height="38" rx="14"/>
+      <ellipse class="eye" cx="46" cy="56" rx="6" ry="7"/>
+      <ellipse class="eye" cx="74" cy="56" rx="6" ry="7"/>
+      <circle class="cheek" cx="36" cy="69" r="3.5"/>
+      <circle class="cheek" cx="84" cy="69" r="3.5"/>
+      <rect class="mouth" x="53" y="67" width="14" height="4" rx="2"/>
+      <g class="arm arm-left"><rect x="24" y="98" width="10" height="28" rx="5"/></g>
+      <g class="arm arm-right"><rect x="86" y="98" width="10" height="28" rx="5"/></g>
+      <rect class="torso" x="36" y="94" width="48" height="42" rx="12"/>
+      <path class="chest" d="M60 123 V105 M52 112 L60 104 L68 112 M50 128 H70"/>
+    </g>
+  </svg>
+</template>
+
+<dialog id="botty" class="botty-dialog" aria-labelledby="bottyTitle">
+  <div class="botty-stage">
+    <div class="botty-figure" data-bot id="bottyFigure"></div>
+    <div class="bubble">
+      <div class="step-title" id="bottyTitle"></div>
+      <p id="bottyText" aria-live="polite"></p>
+      <div class="dots" id="bottyDots"></div>
+    </div>
+  </div>
+  <div class="actions">
+    <button id="bottySkip">Skip</button>
+    <button class="voice-btn" data-voice-toggle hidden></button>
+    <span class="spacer"></span>
+    <button id="bottyBack">Back</button>
+    <button class="primary" id="bottyNext">Next</button>
+  </div>
+</dialog>
+
+<button class="botty-fab" id="bottyFab" title="Talk to Botty" aria-label="Talk to Botty"><span data-bot style="display:block;width:100%;height:100%"></span></button>
+<div class="botty-toast" id="bottyToast" role="status">
+  <strong>Botty</strong><span id="bottyToastText"></span>
+  <div class="ask" id="bottyAsk" hidden>
+    <button class="primary" id="askYes">Yes, show me</button>
+    <button id="askNo">No, thanks</button>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let session = {connected: false};
+let groups = [];
+const selected = new Set();
+let running = false, stopRequested = false;
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+function when(iso) {
+  return new Date(iso).toLocaleString(undefined, {weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"});
+}
+const locale = (name) => name.replace(/\.pdf$/i, "").split("_").pop();
+const byId = (id) => groups.find(g => g.id === id);
+const platformKey = () => session.connected ? session.platform : $("platform").value;
+const platformLabel = () => session.connected ? session.label : $("platform").selectedOptions[0].text.split(" (")[0];
+
+// ---- connection -------------------------------------------------------------------------------
+function renderSession() {
+  $("disconnected").hidden = session.connected;
+  $("connected").hidden = !session.connected;
+  if (session.connected) {
+    $("sessionPlatform").textContent = session.label;
+    $("sessionPlatform").className = "pill " + session.platform;
+    $("sessionUser").textContent = session.username;
+    $("sessionExpiry").textContent = `· valid until ${when(session.expires_at)}`;
+  }
+  updateButton();
+}
+
+async function loadSession() {
+  session = await (await fetch("/api/session")).json();
+  renderSession();
+}
+
+$("connectForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("connectError").textContent = "";
+  $("connectBtn").disabled = true;
+  $("connectBtn").textContent = "Connecting…";
+  const res = await fetch("/api/connect", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({platform: $("platform").value, username: $("username").value, password: $("password").value})});
+  const data = await res.json();
+  $("connectBtn").disabled = false;
+  $("connectBtn").textContent = "Connect";
+  $("password").value = "";
+  if (!res.ok) { $("connectError").textContent = data.error; return; }
+  session = data;
+  renderSession();
+  load();
+  bottySay(session.platform === "production"
+    ? `Connected to Production as ${session.username}. Careful, this is the live site! Pick kits and I'll upload them.`
+    : `Connected to ${session.label} as ${session.username}. Pick some kits and I'll take it from there!`);
+});
+
+$("disconnectBtn").addEventListener("click", async () => {
+  session = await (await fetch("/api/disconnect", {method: "POST"})).json();
+  renderSession();
+});
+$("platform").addEventListener("change", load);
+
+// ---- kit list -----------------------------------------------------------------------------------
+async function load() {
+  const q = new URLSearchParams({folder: $("folder").value, platform: platformKey()});
+  groups = await (await fetch(`/api/groups?${q}`)).json();
+  for (const id of [...selected]) if (!byId(id) || !byId(id).files.length) selected.delete(id);
+  render();
+}
+
+function statusBadge(g) {
+  if (!g.files.length) return '<span class="badge warn">no reports yet</span>';
+  const online = g.files.filter(f => f.state === "online").length;
+  if (g.status === "online") return '<span class="badge ok">✓ online</span>';
+  if (g.status === "partial") return `<span class="badge warn">${online}/${g.files.length} online</span>`;
+  return "";
+}
+
+function render() {
+  const hide = $("hideOnline").checked;
+  const shown = groups.filter(g => !(hide && g.status === "online"));
+  const online = groups.filter(g => g.status === "online").length;
+  $("summary").textContent = `${groups.length} kit(s) · ${online} fully online on ${platformLabel()}` + (hide && online ? " (hidden)" : "");
+
+  $("groups").innerHTML = shown.map(g => `
+    <section class="group is-${g.status}">
+      <header>
+        <input type="checkbox" class="pick" data-id="${esc(g.id)}" ${selected.has(g.id) ? "checked" : ""} ${g.files.length && !running ? "" : "disabled"}>
+        <span class="id">${esc(g.id)}</span>
+        <span class="code" title="Access code">${esc(g.access_code)}</span>
+        <span class="langs">${g.files.map(f => `<span class="lang ${f.state}" title="${esc(f.state)}">${esc(f.locale)}</span>`).join("")}</span>
+        <span class="spacer"></span>
+        ${statusBadge(g)}
+      </header>
+      <div class="files">
+        <div class="muted">${esc(g.input.split("/").pop())} (input · access code ${esc(g.access_code)})</div>
+        ${g.files.map(f => `<div>${esc(f.name)} <span class="muted">(${esc(f.folder)})</span> ${
+          f.state === "online" ? `<span class="online">✓ online since ${esc(when(f.at))}</span>` :
+          f.state === "rejected" ? `<span class="rejected">✕ rejected: ${esc(f.reason)}</span>` : ""}</div>`).join("")}
+      </div>
+    </section>`).join("");
+
+  const pickable = shown.filter(g => g.files.length);
+  $("selectAll").checked = pickable.length > 0 && pickable.every(g => selected.has(g.id));
+  updateButton();
+}
+
+function updateButton() {
+  const n = selected.size;
+  $("upload").disabled = n === 0 || running;
+  $("upload").textContent = !session.connected && n ? `Connect first` : n ? `Upload ${n} kit(s)` : "Upload selected";
+  if (!session.connected) $("upload").disabled = true;
+}
+
+$("groups").addEventListener("click", (e) => {
+  if (e.target.classList.contains("pick")) {
+    e.target.checked ? selected.add(e.target.dataset.id) : selected.delete(e.target.dataset.id);
+    return render();
+  }
+  const header = e.target.closest("header");
+  if (header) header.parentElement.classList.toggle("open");
+});
+$("selectAll").addEventListener("change", (e) => {
+  document.querySelectorAll(".pick:not(:disabled)").forEach(c =>
+    e.target.checked ? selected.add(c.dataset.id) : selected.delete(c.dataset.id));
+  render();
+});
+$("hideOnline").addEventListener("change", () => {
+  if ($("hideOnline").checked) groups.forEach(g => g.status === "online" && selected.delete(g.id));
+  render();
+});
+$("folder").addEventListener("change", () => { selected.clear(); load(); });
+
+// ---- confirmation -------------------------------------------------------------------------------
+// Resolves to "skip" (leave out kits already online), "all", or null (cancel).
+function confirmUpload(online, fresh) {
+  const dlg = $("confirm");
+  const total = online.length + fresh.length;
+  const target = `<span class="pill ${esc(session.platform)}">${esc(session.label)}</span>`;
+  $("confirmTitle").innerHTML = `Upload ${total} kit(s) to ${target}?`;
+  let html = session.platform === "production"
+    ? "<p><strong>This is the live platform.</strong> Uploaded reports become available to customers immediately.</p>" : "";
+  if (online.length) {
+    html += `<h3 class="h-skip">${online.length} kit(s) are already online</h3>
+      <ul>${online.map(g => `<li><code>${esc(g.id)}</code> ${g.files.map(f => esc(f.locale)).join(", ")}</li>`).join("")}</ul>
+      <p class="muted">Sending them again is harmless: the platform keeps the existing reports and reports them as “already online”.</p>`;
+  }
+  $("confirmText").innerHTML = html;
+  $("skipBtn").hidden = !online.length || !fresh.length;
+  $("skipBtn").textContent = `Skip those, upload ${fresh.length}`;
+  $("goBtn").textContent = online.length ? `Upload all ${total}` : `Upload ${total}`;
+  $("goBtn").className = session.platform === "production" ? "danger" : "primary";
+
+  return new Promise((resolve) => {
+    const finish = (choice) => { dlg.close(); resolve(choice); };
+    $("cancelBtn").onclick = () => finish(null);
+    $("skipBtn").onclick = () => finish("skip");
+    $("goBtn").onclick = () => finish("all");
+    dlg.oncancel = () => resolve(null);
+    dlg.showModal();
+    $("cancelBtn").focus();
+  });
+}
+
+// ---- upload run ---------------------------------------------------------------------------------
+$("stopBtn").addEventListener("click", () => { stopRequested = true; $("stopBtn").disabled = true; $("stopBtn").textContent = "Stopping…"; });
+
+$("upload").addEventListener("click", async () => {
+  await loadSession();
+  if (!session.connected) return;
+  await load();
+  const picked = [...selected].map(byId).filter(g => g && g.files.length);
+  const online = picked.filter(g => g.status === "online");
+  const fresh = picked.filter(g => g.status !== "online");
+  const choice = await confirmUpload(online, fresh);
+  if (!choice) return;
+  const kits = choice === "skip" ? fresh : picked;
+
+  const results = {uploaded: [], already: [], rejected: [], errors: [], notSent: [], platform: session.label};
+  running = true; stopRequested = false;
+  $("progress").classList.add("show");
+  $("stopBtn").disabled = false; $("stopBtn").textContent = "Stop after this kit";
+  render();
+  bottySay(`On it! Uploading ${kits.length} kit(s) to ${session.label}…`, {ms: 4000});
+
+  for (let i = 0; i < kits.length; i++) {
+    const g = kits[i];
+    if (stopRequested) { results.notSent.push(...kits.slice(i).map(k => k.id)); break; }
+    $("progressText").textContent = `Uploading ${i + 1} of ${kits.length}: ${g.id}`;
+    $("progressBar").style.width = `${(i / kits.length) * 100}%`;
+    let res, data;
+    try {
+      res = await fetch("/api/upload-kit", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({folder: $("folder").value, id: g.id})});
+      data = await res.json();
+    } catch (err) {
+      res = {ok: false, status: 0}; data = {error: "The uploader website is not reachable: " + err.message};
+    }
+    if (!res.ok) {
+      results.errors.push({id: g.id, error: data.error});
+      if (res.status === 401) {  // login expired: no point in trying the rest
+        results.notSent.push(...kits.slice(i + 1).map(k => k.id));
+        await loadSession();
+        break;
+      }
+      continue;
+    }
+    if (data.inserted.length) results.uploaded.push({id: g.id, locales: data.inserted.map(locale)});
+    if (data.skipped.length) results.already.push({id: g.id, locales: data.skipped.map(locale)});
+    for (const r of data.rejected) results.rejected.push({id: g.id, file: r});
+  }
+
+  $("progressBar").style.width = "100%";
+  running = false;
+  $("progress").classList.remove("show");
+  if (choice === "skip") results.skippedByYou = online.map(g => g.id);
+  selected.clear();
+  showReport(results);
+  await load();
+});
+
+function showReport(r) {
+  const section = (cls, title, items) => items.length
+    ? `<h3 class="${cls}">${title} (${items.length})</h3><ul>${items.join("")}</ul>` : "";
+  const kitLine = (x) => `<li><code>${esc(x.id)}</code> ${x.locales.map(esc).join(", ")}</li>`;
+  const nothing = !r.uploaded.length && !r.already.length && !r.rejected.length && !r.errors.length;
+  $("reportBody").innerHTML = `
+    <h2>Upload finished · ${esc(r.platform)}</h2>
+    ${nothing ? "<p>Nothing was sent.</p>" : ""}
+    ${section("h-ok", "✓ Uploaded", r.uploaded.map(kitLine))}
+    ${section("h-skip", "⏭ Already online, not uploaded again", r.already.map(kitLine))}
+    ${section("h-bad", "✕ Rejected by the platform", r.rejected.map(x => `<li><code>${esc(x.id)}</code> ${esc(x.file)}</li>`))}
+    ${section("h-bad", "⚠ Errors", r.errors.map(x => `<li><code>${esc(x.id)}</code> ${esc(x.error)}</li>`))}
+    ${section("h-skip", "Not sent (stopped)", r.notSent.map(id => `<li><code>${esc(id)}</code></li>`))}
+    ${section("muted", "Skipped by you (already online)", (r.skippedByYou || []).map(id => `<li><code>${esc(id)}</code></li>`))}
+    <p class="muted">Each result is also written to <code>logs/uploads/&lt;date&gt;.jsonl</code>.</p>`;
+  $("report").showModal();
+
+  const problems = r.rejected.length + r.errors.length;
+  bottySay(problems
+    ? `Done, but ${problems} thing(s) need your attention. They're in the report.`
+    : r.uploaded.length
+      ? `All done! ${r.uploaded.length} kit(s) uploaded${r.already.length ? `, ${r.already.length} were already online` : ""}. 🎉`
+      : "Nothing new to upload. Everything was already online!",
+    {happy: !problems && r.uploaded.length > 0, ms: 9000});
+}
+$("reportClose").addEventListener("click", () => $("report").close());
+
+// ---- Botty --------------------------------------------------------------------------------------
+document.querySelectorAll("[data-bot]").forEach(el => el.append($("botTpl").content.cloneNode(true)));
+const bigBot = $("bottyFigure").querySelector("svg");
+const fabBot = $("bottyFab").querySelector("svg");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const TOUR = [
+  {title: "Hi, I'm Botty! 👋",
+   text: "Botty Upload, at your service. I'm the little helper that puts your Mimatest reports on the platform, so nobody has to upload every language by hand anymore."},
+  {title: "What I do",
+   text: "Every kit has one input PDF in report_generator/input. Its name tells me two things: the kit ID and the access code. Then I collect all of that kit's reports from report_generator/output: German, English, Spanish, French, Italian and Albanian."},
+  {title: "Step 1 · Connect",
+   text: "Log in once a day with your admin account, on Local test or on Production. I keep the login for 24 hours. Your password? I forget it right away."},
+  {title: "Step 2 · Pick and upload",
+   text: "Choose an input folder, tick the kits and press Upload. I send each kit's reports together with its access code. Only real PDFs, never the Excel files."},
+  {title: "Step 3 · No doubles",
+   text: "If a report is already online, the platform keeps it and I tell you. Green language chips are online, red ones were rejected, grey ones are still waiting for me."},
+  {title: "Step 4 · Your report",
+   text: "When I'm done I show you what was uploaded, what was already there and what went wrong. And every morning at 08:00 I upload new kits by myself, as long as you logged in the day before."},
+  {title: "Ready? 🚀",
+   text: "That's the whole platform! Click me in the corner whenever you want to hear this again. Let's upload some reports!"},
+];
+let step = 0;
+
+// Types text into el while the bot's mouth moves. Each bubble has its own typing state;
+// typers.get(el)() shows the rest of the sentence at once.
+const typers = new Map();
+function typeInto(el, bot, text, speed = 18) {
+  typers.get(el)?.();
+  if (reducedMotion) { el.textContent = text; return; }
+  let i = 0, timer;
+  el.innerHTML = '<span></span><span class="caret"></span>';
+  const [out, caret] = el.children;
+  const finish = () => { clearInterval(timer); out.textContent = text; caret.remove(); bot.classList.remove("talking"); typers.delete(el); };
+  typers.set(el, finish);
+  bot.classList.add("talking");
+  timer = setInterval(() => {
+    out.textContent = text.slice(0, ++i);
+    if (i >= text.length) finish();
+  }, speed);
+}
+const finishTour = () => typers.get($("bottyText"))?.();
+
+// ---- Botty's voice: the browser's built-in speech, nothing is sent anywhere -----------------------
+const synth = window.speechSynthesis;
+let voiceOn = true, pendingSpeech = null;
+try { voiceOn = localStorage.getItem("botty.voice") !== "off"; } catch (e) { /* default: on */ }
+
+function pickVoice() {
+  const voices = synth.getVoices();
+  return voices.find(v => /^en[-_]GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
+}
+
+// Speak text with a cheerful robot pitch; the bot's mouth moves until it finishes.
+// Browsers only allow speech after the user has clicked something, so until then the
+// sentence waits and is spoken on the first click, if its bubble is still showing.
+function speak(text, bot, stillShowing) {
+  if (!synth || !voiceOn) return;
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
+    pendingSpeech = {text, bot, stillShowing};
+    return;
+  }
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(text
+    .replace(/[\p{Extended_Pictographic}️]/gu, "")      // don't read emoji names aloud
+    .replace(/report_generator\/(\w+)/g, "the $1 folder")    // not "report underscore generator slash"
+    .replace(/\(s\)/g, "s").replace(/[·…]/g, ".")
+    .replace(/([.!?])\s*\./g, "$1"));                        // "Botty! ." -> "Botty!"
+  const voice = pickVoice();
+  if (voice) u.voice = voice;
+  u.pitch = 1.6;
+  u.rate = 1.05;
+  u.onstart = () => bot.classList.add("speaking");
+  u.onend = u.onerror = () => bot.classList.remove("speaking");
+  synth.speak(u);
+}
+function stopSpeaking() {
+  pendingSpeech = null;
+  if (synth) synth.cancel();
+  document.querySelectorAll(".bot.speaking").forEach(b => b.classList.remove("speaking"));
+}
+document.addEventListener("pointerdown", () => {
+  const p = pendingSpeech;
+  pendingSpeech = null;
+  if (p && p.stillShowing()) setTimeout(() => speak(p.text, p.bot, p.stillShowing));  // runs once activation is registered
+}, true);
+
+function renderVoice() {
+  document.querySelectorAll("[data-voice-toggle]").forEach(btn => {
+    btn.hidden = !synth;
+    btn.textContent = voiceOn ? "🔊 Voice on" : "🔇 Voice off";
+    btn.setAttribute("aria-pressed", String(voiceOn));
+  });
+}
+document.querySelectorAll("[data-voice-toggle]").forEach(btn => btn.addEventListener("click", () => {
+  voiceOn = !voiceOn;
+  try { localStorage.setItem("botty.voice", voiceOn ? "on" : "off"); } catch (e) { /* not remembered */ }
+  if (!voiceOn) stopSpeaking();
+  renderVoice();
+}));
+renderVoice();
+const tourOpen = () => $("botty").open;
+const toastOpen = () => $("bottyToast").classList.contains("show");
+
+function showStep(n) {
+  step = n;
+  const s = TOUR[n];
+  $("bottyTitle").textContent = s.title;
+  typeInto($("bottyText"), bigBot, s.text);
+  speak(`${s.title}. ${s.text}`, bigBot, tourOpen);
+  $("bottyDots").innerHTML = TOUR.map((_, i) => `<span class="${i === n ? "on" : ""}"></span>`).join("");
+  $("bottyBack").hidden = n === 0;
+  $("bottyNext").textContent = n === TOUR.length - 1 ? "Let's go!" : "Next";
+  if (n === 0 || n === TOUR.length - 1) wave(bigBot);
+}
+
+function wave(bot) {
+  bot.classList.remove("waving");
+  void bot.getBoundingClientRect();  // restart the animation
+  bot.classList.add("waving");
+}
+
+function openTour() {
+  hideToast();
+  $("botty").showModal();
+  showStep(0);
+  $("bottyNext").focus();
+}
+function closeTour() {
+  finishTour();
+  stopSpeaking();
+  $("botty").close();
+  try { localStorage.setItem("botty.introSeen", "1"); } catch (e) { /* storage blocked: Botty just says hi again next time */ }
+}
+
+$("bottyNext").addEventListener("click", () => {
+  if (typers.has($("bottyText"))) return finishTour();  // first click finishes the sentence
+  step < TOUR.length - 1 ? showStep(step + 1) : closeTour();
+});
+$("bottyBack").addEventListener("click", () => showStep(step - 1));
+$("bottySkip").addEventListener("click", closeTour);
+$("botty").addEventListener("cancel", (e) => { e.preventDefault(); closeTour(); });
+// Short message in the corner bubble, e.g. "Done! 12 kits uploaded". With ask: true it shows
+// Yes/No buttons and stays until answered.
+let toastTimer = null;
+function bottySay(text, {happy = false, ms = 7000, ask = false} = {}) {
+  clearTimeout(toastTimer);
+  $("bottyToast").classList.add("show");
+  $("bottyAsk").hidden = !ask;
+  typeInto($("bottyToastText"), fabBot, text, 14);
+  speak(text, fabBot, toastOpen);
+  fabBot.classList.toggle("happy", happy);
+  if (happy) wave(fabBot);
+  if (!ask) toastTimer = setTimeout(hideToast, ms);
+}
+function hideToast() {
+  clearTimeout(toastTimer);
+  $("bottyToast").classList.remove("show");
+  $("bottyAsk").hidden = true;
+}
+$("bottyToast").addEventListener("click", (e) => { if (!e.target.closest("button")) hideToast(); });
+
+// Clicking Botty in the corner: offer the tour again. Clicking it while asking closes the question.
+$("bottyFab").addEventListener("click", () => {
+  if (toastOpen() && !$("bottyAsk").hidden) { stopSpeaking(); return hideToast(); }
+  bottySay("Do you want to check the tour again?", {ask: true});
+  wave(fabBot);
+  $("askYes").focus();
+});
+$("askYes").addEventListener("click", () => { hideToast(); openTour(); });
+$("askNo").addEventListener("click", () => {
+  bottySay("Ok. Bye.", {ms: 2500});
+  wave(fabBot);
+});
+
+let firstVisit = true;
+try { firstVisit = !localStorage.getItem("botty.introSeen"); } catch (e) { /* show the intro */ }
+
+loadSession().then(load).then(() => {
+  if (firstVisit) openTour();
+  else if (!session.connected) bottySay("Hi again! Connect to the platform and I'll get your reports online.");
+});
+</script>
+</body>
+</html>

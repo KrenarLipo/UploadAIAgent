@@ -1,0 +1,8 @@
+[Unit]
+Description=Botty Upload: upload new report kits to the platform (daily run)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/cts/Git/src/Upload_tests_AI_agent/run_daily.sh

@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+output/
+config.yaml
+.env
+logs/
+.platform_session.json
+upload_history.json
+*.tmp

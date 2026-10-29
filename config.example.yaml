@@ -1,0 +1,24 @@
+# Copy to config.yaml and fill in. config.yaml is ignored by git.
+
+model: claude-opus-5-5
+effort: high          # low | medium | high | xhigh | max
+
+upload:
+  headless: false               # true = run the browser invisibly
+  one_file_per_submit: true     # false if the form accepts several files at once
+
+  # Remove this block if the site needs no login.
+  # Username/password are read from these environment variables, never stored here.
+  login:
+    url: https://example.com/login
+    username_selector: "#username"
+    password_selector: "#password"
+    submit_selector: "button[type=submit]"
+    username_env: UPLOAD_SITE_USER
+    password_env: UPLOAD_SITE_PASSWORD
+
+  upload_page_url: https://example.com/documents/upload
+  selectors:
+    file_input: "input[type=file]"
+    submit: "button:has-text('Upload')"     # leave empty if selecting the file uploads it
+    success_text: "Upload successful"       # text that appears when the upload worked

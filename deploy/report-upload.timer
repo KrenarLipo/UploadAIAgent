@@ -1,0 +1,11 @@
+[Unit]
+Description=Upload new report groups every day at 08:00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+# Laptop was off at 08:00? Run at the next boot instead of skipping the day.
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
